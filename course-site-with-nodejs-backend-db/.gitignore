@@ -1,0 +1,48 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# Prisma
+prisma/dev.db
+prisma/migrations/dev*
+
+# Build
+/dist/
+/build/
+/.next/
+.next/
+coverage/
+
+# React
+*.local
+*.env.*.local
+
+# Misc
+.idea/
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Production
+*.tgz
+
+# Ignore frontend build outputs
+course-site/build/
+course-site/node_modules/
+
+# Ignore backend build outputs
+server-nodejs/node_modules/
+server-nodejs/.env
+server-nodejs/prisma/dev.db
+server-nodejs/prisma/migrations/dev*

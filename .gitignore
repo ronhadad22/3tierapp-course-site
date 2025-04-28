@@ -1,0 +1,66 @@
+# Global Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.*
+*.local
+*.env.*.local
+
+# Build and output
+build/
+dist/
+.next/
+.next/
+coverage/
+
+# React
+*.local
+
+# Production
+*.tgz
+
+# Prisma
+prisma/dev.db
+prisma/migrations/dev*
+
+# Ignore frontend build outputs
+course-site/build/
+course-site/node_modules/
+course-site/.env
+
+# Ignore backend build outputs
+server-nodejs/node_modules/
+server-nodejs/.env
+server-nodejs/prisma/dev.db
+server-nodejs/prisma/migrations/dev*
+
+# Ignore any node_modules and build folders in subdirectories
+**/node_modules/
+**/build/
+**/dist/
+**/.next/
+**/.env
+**/.env.*
+**/.DS_Store
+**/Thumbs.db
+**/.idea/
+**/.vscode/
+**/*.swp
+**/logs/
+**/*.log
+**/coverage/
