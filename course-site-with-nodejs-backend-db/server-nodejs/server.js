@@ -53,6 +53,22 @@ app.post('/api/courses/:id/lessons', async (req, res) => {
   res.json(lesson);
 });
 
+// Delete a course by ID
+app.delete('/api/courses/:id', async (req, res) => {
+  const courseId = parseInt(req.params.id, 10);
+  if (isNaN(courseId)) return res.status(400).json({ error: 'Invalid course ID' });
+  try {
+    // Delete lessons first (if any)
+    await prisma.lesson.deleteMany({ where: { courseId } });
+    // Then delete the course
+    const deleted = await prisma.course.delete({ where: { id: courseId } });
+    res.json({ success: true, deleted });
+  } catch (err) {
+    console.error('Delete course error:', err);
+    res.status(404).json({ error: 'Course not found or could not be deleted', details: err.message });
+  }
+});
+
 // Add a new course
 app.post('/api/courses', async (req, res) => {
   const { title, description } = req.body;
