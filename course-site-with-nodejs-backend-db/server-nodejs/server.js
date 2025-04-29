@@ -1,12 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const prisma = require('./prismaClient');
+const authRoutes = require('./routes/auth');
+const { requireAuth, requireRole } = require('./middleware/auth');
 
 const app = express();
 const PORT = 5001;
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/auth', authRoutes);
 
 // Get all courses
 app.get('/api/courses', async (req, res) => {
@@ -69,9 +72,12 @@ app.delete('/api/courses/:id', async (req, res) => {
   }
 });
 
-// Add a new course
-app.post('/api/courses', async (req, res) => {
+// Add a new course (admin only)
+app.post('/api/courses', requireAuth, requireRole('admin'), async (req, res) => {
   const { title, description } = req.body;
+  if (!title || !description) {
+    return res.status(400).json({ error: 'Title and description are required' });
+  }
   const newCourse = await prisma.course.create({
     data: { title, description }
   });
