@@ -19,6 +19,8 @@ model User {
   password String
   name     String
   role     String // e.g., "admin", "instructor", "student"
+  verified Boolean @default(false)
+  verificationToken String?
 }
 
 model Course {
