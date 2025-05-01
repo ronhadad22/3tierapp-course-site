@@ -10,7 +10,6 @@ const crypto = require('crypto');
 const { sendVerificationEmail } = require('../utils/email');
 
 
-
 // Signup
 router.post('/signup', async (req, res) => {
   const { email, password, name, role } = req.body;
