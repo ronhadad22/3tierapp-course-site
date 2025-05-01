@@ -6,7 +6,6 @@ const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
-
 const crypto = require('crypto');
 const { sendVerificationEmail } = require('../utils/email');
 
