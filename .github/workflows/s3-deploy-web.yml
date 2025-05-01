@@ -13,7 +13,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: course-site-with-nodejs-backend-db/**
+        working-directory: course-site-with-nodejs-backend-db/course-site
 
     steps:
       - name: Checkout code
