@@ -40,10 +40,5 @@ jobs:
           role-to-assume: arn:aws:iam::050752632489:role/web-app-role-for-github
           aws-region: eu-central-1
 
-      - name: Deploy to S3
-        uses: jakejarvis/s3-sync-action@v0.5.1
-        with:
-          args: --delete
-        env:
-          AWS_S3_BUCKET: course-web-app-iitc-raect
-          SOURCE_DIR: course-site-with-nodejs-backend-db/course-site
+      - name: Deploy to S3 using AWS CLI
+        run: aws s3 sync build s3://course-web-app-iitc-raect  --delete
