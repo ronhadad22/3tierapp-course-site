@@ -27,7 +27,21 @@ export default function Login({ onLogin, onSwitchToSignup }) {
   };
 
   return (
-    <div style={{ maxWidth: 350, margin: "60px auto", padding: 32, background: "#fff", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#f7fafc'
+    }}>
+      <div style={{ 
+        width: '100%',
+        maxWidth: 350, 
+        padding: 32, 
+        background: '#fff', 
+        borderRadius: 12, 
+        boxShadow: '0 4px 24px rgba(0,0,0,0.08)' 
+      }}>
       <h2 style={{ marginBottom: 24, textAlign: "center" }}>Login</h2>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 16 }}>
@@ -68,6 +82,7 @@ export default function Login({ onLogin, onSwitchToSignup }) {
         >
           Sign Up
         </button>
+      </div>
       </div>
     </div>
   );
