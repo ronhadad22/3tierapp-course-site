@@ -37,3 +37,4 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/course-site-backend/server-nodejs:latest
+          
