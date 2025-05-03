@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Course Site Backend Docker Image
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - 'course-site-with-nodejs-backend-db/server-nodejs/**'
 
 jobs:
-  build-and-push:
+  build-and-push-course-site-backend:
     runs-on: ubuntu-24.04-arm
 
     permissions:
@@ -29,11 +29,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Build and push for ARM64
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/myapp:latest
+          tags: ghcr.io/${{ github.repository_owner }}/course-site-backend/server-nodejs:latest
