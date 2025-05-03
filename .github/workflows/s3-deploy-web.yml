@@ -5,15 +5,16 @@ on:
     branches:
       - main
     paths:
-      - 'course-site-with-nodejs-backend-db/**'
+      - 'course-site-with-nodejs-backend-db/course-site/**'
 
-permissions:
-  id-token: write
-  contents: read
+
 
 jobs:
   deploy:
     runs-on: ubuntu-24.04-arm
+    permissions:
+      id-token: write
+      contents: read
 
     defaults:
       run:
