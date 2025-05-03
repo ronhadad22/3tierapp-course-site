@@ -8,7 +8,6 @@ async function start() {
     require('../server.js');
 }
 
-
 start().catch(error => {
     console.error('Failed to start application:', error);
     process.exit(1);
