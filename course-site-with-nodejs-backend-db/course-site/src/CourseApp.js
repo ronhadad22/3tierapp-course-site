@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 
 export default function CourseApp() {
   const navigate = useNavigate();
@@ -47,79 +49,99 @@ export default function CourseApp() {
   }, [fetchCourses]);
 
   return (
-    <div style={{ fontFamily: "Segoe UI, Arial, sans-serif", background: "#f4f7fa", minHeight: "100vh", padding: "32px 0" }}>
-      <div style={{ background: "#fff", borderRadius: "16px", boxShadow: "0 4px 24px rgba(0,0,0,0.10)", maxWidth: "700px", margin: "auto", padding: "32px 36px 28px 36px" }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-            <img src="/my-logo.jpg" alt="Logo" style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", boxShadow: "0 1px 6px rgba(0,0,0,0.10)" }} />
-            <span style={{ fontWeight: 700, letterSpacing: "-1px", fontSize: "2.2rem" }}>My Dev Courses</span>
-          </div>
-           {user && user.role === 'admin' && (
-             <button
-               className="add-course-btn"
-               style={{
-                 padding: '10px 22px',
-                 background: '#3182ce',
-                 color: '#fff',
-                 border: 'none',
-                 borderRadius: '6px',
-                 fontWeight: 600,
-                 fontSize: '1.05rem',
-                 cursor: 'pointer',
-                 boxShadow: '0 2px 8px rgba(49,130,206,0.08)',
-                 transition: 'background 0.15s',
-               }}
-               onClick={() => navigate('/add')}
-             >
-               + Add Course
-             </button>
-           )}
+    <div style={{ 
+      fontFamily: "Segoe UI, Arial, sans-serif",
+      minHeight: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      background: "#f4f7fa"
+    }}>
+      <Navbar />
+      <main style={{ 
+        flex: 1,
+        padding: "2rem 1rem"
+      }}>
+        <div style={{ 
+          background: "#fff", 
+          borderRadius: "16px", 
+          boxShadow: "0 4px 24px rgba(0,0,0,0.10)", 
+          maxWidth: "1000px", 
+          margin: "0 auto", 
+          padding: "32px 36px 28px 36px" 
+        }}>
+        <div style={{ marginBottom: '2rem' }}>
+          <h1 style={{ 
+            fontSize: "2rem", 
+            fontWeight: 600,
+            margin: 0,
+            color: "#2d3748"
+          }}>
+            Available Courses
+          </h1>
+        </div>
         </div>
 
         {loading ? (
           <p>Loading courses...</p>
         ) : courses.length === 0 ? (
-          <div style={{ color: "#888", margin: "32px 0 0 0", fontSize: "1.1rem" }}>No courses available.</div>
+          <p>No courses available.</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "22px" }}>
+          <div style={{ display: 'grid', gap: '24px', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
             {courses.map((course) => (
               <div
                 key={course.id}
                 style={{
-                  background: "#f7fafc",
-                  borderRadius: "12px",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-                  padding: "22px 26px 18px 26px",
-                  cursor: "pointer",
-                  transition: "box-shadow 0.15s, transform 0.12s",
-                  border: "1.5px solid #e2e8f0",
-                  fontSize: "1.08rem",
-                  fontWeight: 500,
-                  color: "#222",
-                  position: "relative",
-                  outline: "none"
+                  background: '#fff',
+                  borderRadius: '12px',
+                  padding: '24px',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                  border: '1px solid #e2e8f0'
                 }}
-                onClick={() => navigate(`/course/${course.id}`)}
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') navigate(`/course/${course.id}`); }}
               >
-                {/* Delete button */}
-                <button
-                  onClick={e => { e.stopPropagation(); handleDeleteCourse(course.id); }}
-                  style={{ position: 'absolute', top: 12, right: 12, background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: deletingId === course.id ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(229,62,62,0.12)' }}
-                  title="Delete course"
-                  disabled={deletingId === course.id}
-                >
-                  {deletingId === course.id ? '…' : '×'}
-                </button>
-                <div style={{ fontSize: "1.18rem", fontWeight: 700, marginBottom: 6 }}>{course.title}</div>
-                <div style={{ color: "#555", marginBottom: 3 }}>{course.description}</div>
-                <div style={{ fontSize: "0.97rem", color: "#888", marginTop: 8 }}>Created: {new Date(course.createdAt).toLocaleString()}</div>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '1.4rem', fontWeight: 600 }}>{course.title}</h3>
+                <p style={{ margin: '0 0 20px 0', color: '#4a5568', fontSize: '1rem', lineHeight: 1.6 }}>
+                  {course.description}
+                </p>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    style={{
+                      padding: '8px 16px',
+                      background: '#3182ce',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem'
+                    }}
+                    onClick={() => navigate(`/course/${course.id}`)}
+                  >
+                    View Course
+                  </button>
+                  {user && user.role === 'admin' && (
+                    <button
+                      style={{
+                        padding: '8px 16px',
+                        background: '#e53e3e',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.95rem',
+                        opacity: deletingId === course.id ? 0.7 : 1
+                      }}
+                      onClick={() => handleDeleteCourse(course.id)}
+                      disabled={deletingId === course.id}
+                    >
+                      {deletingId === course.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </main>
+      <Footer />
     </div>
   );
 
