@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import config from "./config";
 
 export default function AddCourse() {
   const [title, setTitle] = useState("");
@@ -14,7 +15,7 @@ export default function AddCourse() {
     setError("");
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:5001/api/courses", {
+      const res = await fetch(`${config.apiUrl}/api/courses`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

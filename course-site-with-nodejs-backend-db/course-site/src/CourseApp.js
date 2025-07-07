@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import config from "./config";
 
 export default function CourseApp() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function CourseApp() {
 
   const fetchCourses = React.useCallback(() => {
     setLoading(true);
-    fetch("http://localhost:5001/api/courses")
+    fetch(`${config.apiUrl}/api/courses`)
       .then((res) => res.json())
       .then((data) => {
         setCourses(data);
@@ -34,7 +35,7 @@ export default function CourseApp() {
     if (!window.confirm('Are you sure you want to delete this course? This cannot be undone.')) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`http://localhost:5001/api/courses/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${config.apiUrl}/api/courses/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete');
       fetchCourses();
     } catch (err) {

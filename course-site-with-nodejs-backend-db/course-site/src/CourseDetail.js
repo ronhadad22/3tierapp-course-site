@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import config from "./config";
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -16,7 +17,7 @@ export default function CourseDetail() {
     async function fetchCourse() {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:5001/api/courses/${id}`);
+        const res = await fetch(`${config.apiUrl}/api/courses/${id}`);
         if (!res.ok) throw new Error("Could not fetch course");
         const data = await res.json();
         setCourse(data);
@@ -35,7 +36,7 @@ export default function CourseDetail() {
     setAdding(true);
     setError("");
     try {
-      const res = await fetch(`http://localhost:5001/api/courses/${id}/lessons`, {
+      const res = await fetch(`${config.apiUrl}/api/courses/${id}/lessons`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: lessonTitle, content: lessonContent })

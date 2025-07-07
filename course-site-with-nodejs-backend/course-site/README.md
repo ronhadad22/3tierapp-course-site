@@ -2,9 +2,32 @@
 
 This is the React frontend for the Course Site application.
 
+## Installation
+
+### Prerequisites
+- Node.js and npm must be installed on your system
+
+### Setup
+1. Install backend dependencies:
+   ```bash
+   cd server-nodejs
+   npm install
+   ```
+
+2. Install frontend dependencies:
+   ```bash
+   cd course-site
+   npm install
+   ```
+
 ## Configuration
 
 The application uses environment variables for configuration. You can set these in several ways:
+
+```
+# Create a .env file with REACT_APP_API_URL=http://your-server-address:port
+# Or set the environment variable when starting: REACT_APP_API_URL=http://your-server-address:port npm start
+```
 
 ### Option 1: Create a .env file
 
