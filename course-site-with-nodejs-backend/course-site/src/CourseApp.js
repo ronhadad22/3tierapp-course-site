@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import config from "./config";
 
 export default function CourseApp() {
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -6,7 +7,7 @@ export default function CourseApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:5001/api/courses")
+    fetch(`${config.apiUrl}/api/courses`)
       .then((res) => res.json())
       .then((data) => {
         setCourses(data);

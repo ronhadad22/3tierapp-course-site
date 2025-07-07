@@ -1,6 +1,32 @@
-# Getting Started with Create React App
+# Course Site Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is the React frontend for the Course Site application.
+
+## Configuration
+
+The application uses environment variables for configuration. You can set these in several ways:
+
+### Option 1: Create a .env file
+
+Create a `.env` file in the root of the project with the following content:
+
+```
+REACT_APP_API_URL=http://your-api-domain:port
+```
+
+### Option 2: Set environment variables when starting the app
+
+```bash
+# For development
+REACT_APP_API_URL=http://your-api-domain:port npm start
+
+# For production build
+REACT_APP_API_URL=http://your-api-domain:port npm run build
+```
+
+### Option 3: Set environment variables on your hosting platform
+
+Most hosting platforms (Vercel, Netlify, etc.) allow you to set environment variables in their dashboard.
 
 ## Available Scripts
 
@@ -11,8 +37,7 @@ In the project directory, you can run:
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+
 
 ### `npm test`
 
@@ -38,6 +63,10 @@ If you aren't satisfied with the build tool and configuration choices, you can `
 Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
 
 You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+
+## Default Configuration
+
+If no API URL is specified, the application will default to `http://localhost:5001`.
 
 ## Learn More
 
