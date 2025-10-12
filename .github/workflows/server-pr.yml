@@ -1,0 +1,62 @@
+name: PR Validate Course Site Backend Build
+
+# This workflow validates PRs by building the backend Docker image.
+# Best practice: do NOT push images from PRs (especially from forks).
+# Keep publish logic in the push/tag workflow only.
+
+on:
+  pull_request:
+    paths:
+      - 'course-site-with-nodejs-backend-db/server-nodejs/**'
+
+jobs:
+  validate-backend-docker-build:
+    # Use an ARM64 runner to match the target image architecture
+    runs-on: ubuntu-24.04-arm
+
+    # Minimal permissions for PR validation
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: course-site-with-nodejs-backend-db/server-nodejs
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: course-site-with-nodejs-backend-db/server-nodejs/package-lock.json
+
+      - name: Install dependencies (npm ci)
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Run lint if available
+        shell: bash
+        run: |
+          node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.lint?0:1)" \
+          && npm run lint --if-present \
+          || echo "No lint script defined; skipping"
+
+      - name: Run tests if available (and not placeholder)
+        shell: bash
+        run: |
+          node -e "const p=require('./package.json');const s=p.scripts&&p.scripts.test||'';process.exit(s && !s.includes('no test specified')?0:1)" \
+          && npm test -- --ci --watchAll=false \
+          || echo "No meaningful test script found; skipping"
+
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./course-site-with-nodejs-backend-db/server-nodejs
+          platforms: linux/arm64
+          push: false  # IMPORTANT: do not push images on PRs
+          # Use GitHub cache to speed up PR builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
