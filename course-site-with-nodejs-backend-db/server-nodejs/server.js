@@ -11,6 +11,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 
+
 // Get all courses
 app.get('/api/courses', async (req, res) => {
   const courses = await prisma.course.findMany();
