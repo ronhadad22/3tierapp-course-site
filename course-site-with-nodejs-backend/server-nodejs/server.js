@@ -7,6 +7,7 @@ const PORT = 5001;
 
 app.use(cors()); // מאפשר קריאה מהדפדפן (מה-React)
 
+
 const courses = [
   {
     id: 1,
