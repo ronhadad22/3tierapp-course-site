@@ -99,6 +99,7 @@ jobs:
             type=sha,format=short
 
       - name: Build and push (ARM64)
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: ./course-site-with-nodejs-backend-db/server-nodejs
@@ -116,7 +117,7 @@ jobs:
         with:
           image: ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}
           format: cyclonedx-json
-          output-file: sbom.cdx.json
+          output-file: course-site-with-nodejs-backend-db/server-nodejs/sbom.cdx.json
 
       - name: Install cosign
         if: startsWith(github.ref, 'refs/tags/')
@@ -128,8 +129,9 @@ jobs:
           COSIGN_EXPERIMENTAL: '1'
           COSIGN_YES: 'true'
         run: |
-          IMAGE="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}"
-          cosign attest --predicate sbom.cdx.json --type cyclonedx "$IMAGE"
+          IMAGE_REPO="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs"
+          REF="$IMAGE_REPO@${{ steps.build.outputs.digest }}"
+          cosign attest --predicate course-site-with-nodejs-backend-db/server-nodejs/sbom.cdx.json --type cyclonedx "$REF"
 
       - name: Sign image (cosign keyless)
         if: startsWith(github.ref, 'refs/tags/')
@@ -137,12 +139,13 @@ jobs:
           COSIGN_EXPERIMENTAL: '1'
           COSIGN_YES: 'true'
         run: |
-          IMAGE="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}"
-          cosign sign "$IMAGE"
+          IMAGE_REPO="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs"
+          REF="$IMAGE_REPO@${{ steps.build.outputs.digest }}"
+          cosign sign "$REF"
 
       - name: Upload SBOM as artifact
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.ref_name }}
-          path: sbom.cdx.json
+          path: course-site-with-nodejs-backend-db/server-nodejs/sbom.cdx.json
