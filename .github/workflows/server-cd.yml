@@ -1,0 +1,130 @@
+name: Deploy Backend to EC2 (CD)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (e.g., v1.1.9 or sha-<short>)"
+        required: false
+        default: ""
+  push:
+    tags:
+      - 'v*'
+    paths:
+      - 'course-site-with-nodejs-backend-db/server-nodejs/**'
+
+jobs:
+  deploy:
+    name: Deploy course-site backend to EC2
+    runs-on: ubuntu-24.04
+
+    # Minimal required permissions. No repo write needed.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute lowercase owner
+        id: owner
+        shell: bash
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lower=$OWNER_LOWER" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve image tag to deploy
+        id: tag
+        shell: bash
+        run: |
+          # Prefer manual input, otherwise use the pushed tag name, else fall back to latest
+          TAG_INPUT="${{ github.event.inputs.image_tag }}"
+          if [ -n "$TAG_INPUT" ]; then TAG="$TAG_INPUT"; elif [[ "${{ github.ref }}" == refs/tags/* ]]; then TAG="${{ github.ref_name }}"; else TAG="latest"; fi
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Show deployment plan
+        run: |
+          echo "Deploying ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ steps.tag.outputs.value }} to ${{ secrets.EC2_HOST }}"
+
+      # Verify signature and SBOM attestation before deploying
+      - name: Set up Docker Buildx (for imagetools)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR (for inspecting manifests)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Resolve image digest for selected tag
+        id: digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ steps.tag.outputs.value }}"
+          # extract the first digest from imagetools inspect
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" | awk '/Digest:/ {print $2; exit}')
+          if [ -z "$DIGEST" ]; then echo "Failed to resolve digest for $IMAGE" >&2; exit 1; fi
+          echo "value=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Verify image signature (cosign keyless)
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          set -euo pipefail
+          REF="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs@${{ steps.digest.outputs.value }}"
+          cosign verify \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}(@|/).*$" \
+            "$REF"
+
+      - name: Verify SBOM attestation (CycloneDX)
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          set -euo pipefail
+          REF="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs@${{ steps.digest.outputs.value }}"
+          cosign verify-attestation --type cyclonedx "$REF"
+
+      # SSH into EC2 and perform a rolling replace of the running container
+      - name: Deploy on EC2 over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || '22' }}
+          script_stop: true
+          # Notes:
+          # - Requires Docker installed on EC2 host.
+          # - GHCR_PAT must have read:packages.
+          # - Ensure architecture matches image (this repo builds linux/arm64). Use ARM64 EC2 (e.g., Graviton).
+          script: |
+            set -euo pipefail
+
+            IMAGE_REPO="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs"
+            IMAGE_TAG="${{ steps.tag.outputs.value }}"
+
+            echo "Logging in to GHCR..."
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            echo "Pulling image ${IMAGE_REPO}:${IMAGE_TAG}"
+            docker pull "${IMAGE_REPO}:${IMAGE_TAG}"
+
+            echo "Stopping current container if exists"
+            docker rm -f course-site-backend || true
+
+            echo "Starting new container"
+            docker run -d \
+              --name course-site-backend \
+              --restart unless-stopped \
+              -p 5001:5001 \
+              --env-file /opt/course-site/.env \
+              "${IMAGE_REPO}:${IMAGE_TAG}"
+
+            echo "Pruning old images (optional)"
+            docker image prune -f || true
