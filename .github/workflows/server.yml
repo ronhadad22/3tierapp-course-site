@@ -118,7 +118,7 @@ jobs:
         with:
           image: ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}
           format: cyclonedx-json
-          output-file: sbom.cdx.json
+          output-file: ${{ github.workspace }}/sbom.cdx.json
           upload-artifact: false
 
       - name: Install cosign
@@ -133,7 +133,7 @@ jobs:
         run: |
           IMAGE_REPO="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs"
           REF="$IMAGE_REPO@${{ steps.build.outputs.digest }}"
-          cosign attest --predicate sbom.cdx.json --type cyclonedx "$REF"
+          cosign attest --predicate "${{ github.workspace }}/sbom.cdx.json" --type cyclonedx "$REF"
 
       - name: Sign image (cosign keyless)
         if: startsWith(github.ref, 'refs/tags/')
@@ -150,4 +150,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.ref_name }}
-          path: sbom.cdx.json
+          path: ${{ github.workspace }}/sbom.cdx.json
