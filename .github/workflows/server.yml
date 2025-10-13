@@ -111,13 +111,14 @@ jobs:
       # SBOM generation on tag releases only (no GitHub Release creation)
       - name: Install Syft (for SBOM)
         if: startsWith(github.ref, 'refs/tags/')
+        id: syft
         uses: anchore/sbom-action/download-syft@v0.17.9
 
       - name: Generate SBOM (CycloneDX) for released image
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           IMAGE="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}"
-          syft packages "$IMAGE" -o cyclonedx-json > sbom.cdx.json
+          "${{ steps.syft.outputs.syft-path }}" scan "$IMAGE" -o cyclonedx-json=sbom.cdx.json
 
       - name: Upload SBOM as artifact
         if: startsWith(github.ref, 'refs/tags/')
