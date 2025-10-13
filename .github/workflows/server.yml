@@ -21,6 +21,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
 
     # Default working directory for subsequent run steps
     defaults:
@@ -116,6 +117,28 @@ jobs:
           image: ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}
           format: cyclonedx-json
           output-file: sbom.cdx.json
+
+      - name: Install cosign
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Attest SBOM to image (cosign keyless)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+          COSIGN_YES: 'true'
+        run: |
+          IMAGE="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}"
+          cosign attest --predicate sbom.cdx.json --type cyclonedx "$IMAGE"
+
+      - name: Sign image (cosign keyless)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+          COSIGN_YES: 'true'
+        run: |
+          IMAGE="ghcr.io/${{ steps.owner.outputs.owner_lower }}/course-site-backend/server-nodejs:${{ github.ref_name }}"
+          cosign sign "$IMAGE"
 
       - name: Upload SBOM as artifact
         if: startsWith(github.ref, 'refs/tags/')
