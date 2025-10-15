@@ -34,6 +34,8 @@ jobs:
 
       - name: Build React app
         run: npm run build
+        env:
+          REACT_APP_API_BASE_URL: https://course-site-demo.iitc-course.com
         
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v3
