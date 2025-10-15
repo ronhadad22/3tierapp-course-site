@@ -6,7 +6,6 @@ import CourseDetail from "./CourseDetail";
 import Login from "./Login";
 import Signup from "./Signup";
 
-
 function App() {
   const [user, setUser] = React.useState(() => {
     const stored = localStorage.getItem('user');
