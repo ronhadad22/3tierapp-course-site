@@ -45,6 +45,7 @@ function App() {
       <Routes>
         <Route path="/" element={<CourseApp />} />
         <Route path="/add" element={<AddCourse />} />
+        <Route path="/add-course" element={<AddCourse />} />
         <Route path="/course/:id" element={<CourseDetail />} />
       </Routes>
     </BrowserRouter>
