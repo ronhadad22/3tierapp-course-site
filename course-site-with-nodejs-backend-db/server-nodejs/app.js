@@ -10,6 +10,18 @@ app.use(cors());
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 
+// Liveness/Readiness probe for load balancers and container health checks
+app.get('/health', async (req, res) => {
+  try {
+    // Fast DB check; works for MySQL and PostgreSQL
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok' });
+  } catch (e) {
+    console.error('Health DB check failed:', e);
+    res.status(500).json({ status: 'error', error: 'db_unreachable' });
+  }
+});
+
 // Get all courses
 app.get('/api/courses', async (req, res) => {
   const courses = await prisma.course.findMany();

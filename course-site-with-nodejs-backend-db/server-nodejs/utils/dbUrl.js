@@ -5,11 +5,15 @@
 
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
-function buildMysqlUrl({ user, password, host, port, db, params }) {
+function buildDbUrl({ provider, user, password, host, port, db, params }) {
   const encUser = encodeURIComponent(user);
   const encPass = encodeURIComponent(password);
-  const base = `mysql://${encUser}:${encPass}@${host}:${port}/${db}`;
-  return params && String(params).trim() ? `${base}?${params}` : base;
+  const qp = params && String(params).trim() ? `?${params}` : '';
+  if ((provider || '').toLowerCase().startsWith('postg')) {
+    return `postgresql://${encUser}:${encPass}@${host}:${port}/${db}${qp}`;
+  }
+  // default: mysql
+  return `mysql://${encUser}:${encPass}@${host}:${port}/${db}${qp}`;
 }
 
 async function fetchSecretString(secretArn, region) {
@@ -32,7 +36,7 @@ async function resolveDatabaseUrl({ allowExistingEnv = true } = {}) {
     const secret = await fetchSecretString(fullArn, region);
     if (!secret) throw new Error('Secret (connection string) had no content');
     const trimmed = secret.trim();
-    if (trimmed.startsWith('mysql://')) return trimmed;
+    if (trimmed.startsWith('mysql://') || trimmed.startsWith('postgresql://')) return trimmed;
     // Fall through if not a URL
   }
 
@@ -44,7 +48,7 @@ async function resolveDatabaseUrl({ allowExistingEnv = true } = {}) {
   if (!secretStr) throw new Error('Secret (user/password) had no content');
 
   const trimmed = secretStr.trim();
-  if (trimmed.startsWith('mysql://')) return trimmed; // allow full URL in either secret
+  if (trimmed.startsWith('mysql://') || trimmed.startsWith('postgresql://')) return trimmed; // allow full URL in either secret
 
   // parse JSON { user, password } or AWS RDS format { username, password, host, port, dbname, engine }
   let parsed;
@@ -54,7 +58,7 @@ async function resolveDatabaseUrl({ allowExistingEnv = true } = {}) {
 
   // If secret contains a URL field, accept it directly
   const urlField = parsed.DATABASE_URL || parsed.database_url || parsed.url || parsed.connectionString || parsed.connection_string;
-  if (typeof urlField === 'string' && urlField.trim().startsWith('mysql://')) {
+  if (typeof urlField === 'string' && (urlField.trim().startsWith('mysql://') || urlField.trim().startsWith('postgresql://'))) {
     return urlField.trim();
   }
 
@@ -65,14 +69,17 @@ async function resolveDatabaseUrl({ allowExistingEnv = true } = {}) {
   // host/db/port can come from env (preferred) or secret (AWS RDS secret has host, port, dbname)
   const host = process.env.DB_HOST || parsed.host || parsed.hostname;
   const db = process.env.DB_NAME || parsed.db || parsed.database || parsed.dbname || parsed.DB_NAME;
-  const port = process.env.DB_PORT ? Number(process.env.DB_PORT) : (parsed.port ? Number(parsed.port) : 3306);
+  const providerRaw = process.env.DB_PROVIDER || parsed.engine || parsed.provider || 'mysql';
+  const provider = String(providerRaw).toLowerCase();
+  const defaultPort = provider.startsWith('postg') ? 5432 : 3306;
+  const port = process.env.DB_PORT ? Number(process.env.DB_PORT) : (parsed.port ? Number(parsed.port) : defaultPort);
   const params = process.env.DB_PARAMS || parsed.params || '';
   if (!host || !db) throw new Error('DB host/name not provided. Set DB_HOST and DB_NAME env or include host/dbname in the secret.');
 
-  return buildMysqlUrl({ user, password, host, port, db, params });
+  return buildDbUrl({ provider, user, password, host, port, db, params });
 }
 
 module.exports = {
-  buildMysqlUrl,
+  buildDbUrl,
   resolveDatabaseUrl,
 };
