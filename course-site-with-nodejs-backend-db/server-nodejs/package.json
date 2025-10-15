@@ -5,7 +5,10 @@
   "scripts": {
     "test": "jest --runInBand",
     "lint": "eslint . --ext .js",
-    "start": "node scripts/start.js"
+    "start": "node scripts/start.js",
+    "prisma:generate": "node scripts/prisma-env.js prisma generate",
+    "prisma:migrate:deploy": "node scripts/prisma-env.js prisma migrate deploy",
+    "prisma:migrate:dev": "node scripts/prisma-env.js prisma migrate dev"
   },
   "keywords": [],
   "author": "",
