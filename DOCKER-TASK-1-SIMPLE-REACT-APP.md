@@ -19,6 +19,30 @@ In this task, you will containerize the `course-site` React application using Do
 
 ---
 
+## Getting Started
+
+### Clone the Repository
+
+First, clone the course repository and checkout the `docker-task` branch:
+
+```bash
+# Clone the repository
+git clone https://github.com/ronhadad22/3tierapp-course-site.git
+
+# Navigate to the project directory
+cd 3tierapp-course-site
+
+# Checkout the docker-task branch
+git checkout docker-task
+
+# Verify you're on the correct branch
+git branch
+```
+
+You should now have access to all the application code needed for this task.
+
+---
+
 ## Task Requirements
 
 ### Part 1: Create Dockerfile for React App

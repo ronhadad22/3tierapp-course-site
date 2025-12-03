@@ -21,6 +21,30 @@ In this advanced task, you will containerize the complete 3-tier application (`c
 
 ---
 
+## Getting Started
+
+### Clone the Repository
+
+If you haven't already cloned the repository from Docker Task 1, do so now:
+
+```bash
+# Clone the repository
+git clone https://github.com/ronhadad22/3tierapp-course-site.git
+
+# Navigate to the project directory
+cd 3tierapp-course-site
+
+# Checkout the docker-task branch
+git checkout docker-task
+
+# Verify you're on the correct branch
+git branch
+```
+
+You should now have access to the full-stack application code in the `course-site-with-nodejs-backend-db` directory.
+
+---
+
 ## Step 0: Deploy ASG-ALB Infrastructure (Required Before Starting)
 
 Before you begin containerizing the application, you must first deploy the Auto Scaling Group with Application Load Balancer infrastructure using CloudFormation.

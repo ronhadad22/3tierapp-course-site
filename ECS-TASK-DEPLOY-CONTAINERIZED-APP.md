@@ -25,6 +25,30 @@ In this task, you will deploy your containerized 3-tier application to Amazon EC
 
 ---
 
+## Getting Started
+
+### Clone the Repository
+
+If you haven't already cloned the repository from the previous Docker tasks, do so now:
+
+```bash
+# Clone the repository
+git clone https://github.com/ronhadad22/3tierapp-course-site.git
+
+# Navigate to the project directory
+cd 3tierapp-course-site
+
+# Checkout the docker-task branch
+git checkout docker-task
+
+# Verify you're on the correct branch
+git branch
+```
+
+You should now have access to all the application code and Docker configurations needed for this ECS deployment task.
+
+---
+
 ## Architecture Overview
 
 Your ECS deployment will consist of:
