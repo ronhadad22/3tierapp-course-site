@@ -1,23 +1,84 @@
-# Docker Task 2: Containerize Full-Stack Application with Docker Compose
+# Docker Task 2: Containerize Backend API and Deploy to AWS
 
 ## Overview
-In this advanced task, you will containerize the complete 3-tier application (`course-site-with-nodejs-backend-db`) using Docker and Docker Compose. You'll create separate containers for the frontend, backend, and database, and orchestrate them to work together.
+In this task, you will containerize the Node.js backend API from the 3-tier application (`course-site-with-nodejs-backend-db`) and deploy it to AWS. The frontend is already deployed via S3/CloudFront, and the database is already running on RDS. You'll focus on containerizing the backend and updating the ASG-ALB CloudFormation stack to run your Docker container.
+
+## What's Already Deployed? 🎯
+
+**You DON'T need to containerize or deploy:**
+- ✅ **Frontend (React)**: Already deployed on S3/CloudFront via the `simple-frontend-s3-cloudfront.yaml` template
+- ✅ **Database (MySQL)**: Already deployed on RDS via the `asg-alb-scaling.yaml` template
+
+**What YOU need to do:**
+- 🐳 **Containerize the Backend API** (Node.js/Express)
+- 📦 **Push the image to Amazon ECR**
+- 🔧 **Update the User Data in `asg-alb-scaling.yaml`** to pull and run your Docker container
+- 🚀 **Update the CloudFormation stack** to deploy your containerized backend
+
+## Architecture Diagram
+
+```
+                    ┌─────────────────┐
+                    │  User Browser   │
+                    └────────┬────────┘
+                             │
+                ┌────────────┴────────────┐
+                │                         │
+                │ (Static Files)          │ (API Calls)
+                ▼                         ▼
+┌───────────────────────────┐   ┌──────────────────────────┐
+│  CloudFront Distribution  │   │         ALB              │
+│  (ALREADY DEPLOYED)       │   │  (ALREADY DEPLOYED)      │
+└───────────┬───────────────┘   └──────────┬───────────────┘
+            │                              │
+            │                              ▼
+            ▼                   ┌─────────────────────────────────┐
+┌──────────────────┐            │   Auto Scaling Group (ASG)      │
+│   S3 Bucket      │            │   ◄─── YOU UPDATE USER DATA     │
+│  (React Build)   │            │  ┌────────────────────────┐     │
+│ (ALREADY DEPLOYED)│            │  │ EC2 Instance           │     │
+└──────────────────┘            │  │ ┌────────────────────┐ │     │
+                                │  │ │ Docker Container   │ │     │
+                                │  │ │ (Backend API)      │◄┼─────┼─ YOU CONTAINERIZE
+                                │  │ │  Port 5001         │ │     │
+                                │  │ └────────────────────┘ │     │
+                                │  └────────────────────────┘     │
+                                └─────────────┬───────────────────┘
+                                              │
+                                              ▼
+                                ┌──────────────────────┐
+                                │   RDS MySQL          │
+                                │   (Database)         │
+                                │ (ALREADY DEPLOYED)   │
+                                └──────────────────────┘
+
+FLOW:
+1. User browser requests static files (HTML/CSS/JS) from CloudFront
+2. CloudFront serves React app from S3
+3. React app (in browser) makes API calls to ALB
+4. ALB routes requests to EC2 instances running Docker containers
+5. Backend containers connect to RDS database
+```
 
 ## Learning Objectives
-- Create Dockerfiles for multiple application components
-- Use Docker Compose to orchestrate multi-container applications
-- Understand container networking and inter-service communication
-- Manage environment variables and secrets in containerized apps
-- Deploy a multi-container application to AWS using ECS or EC2
+- Create a production-ready Dockerfile for a Node.js backend
+- Use Docker Compose for local development and testing
+- Push Docker images to Amazon ECR (Elastic Container Registry)
+- Update CloudFormation User Data to deploy containerized applications
+- Integrate containerized backend with existing AWS infrastructure (RDS, ALB, S3/CloudFront)
+- Manage environment variables and secrets in production
 
 ---
 
 ## Prerequisites
 - Completed Docker Task 1
-- Docker and Docker Compose installed
-- AWS Account with RDS and ECS/EC2 access
-- Understanding of Node.js, React, and MySQL/Prisma
-- **Completed ASG-ALB CloudFormation deployment** (see Step 0 below)
+- Docker and Docker Compose installed locally
+- AWS Account with ECR, EC2, and CloudFormation access
+- Understanding of Node.js and MySQL/Prisma
+- **Completed ASG-ALB CloudFormation deployment** - This includes:
+  - RDS MySQL database (already deployed)
+  - Auto Scaling Group with Application Load Balancer
+  - S3/CloudFront frontend (already deployed from previous task)
 
 ---
 
@@ -83,7 +144,12 @@ Before you begin containerizing the application, you must first deploy the Auto 
    - Note the ALB DNS name for later use
 
 **Why is this required?**
-This infrastructure will be used in Part 9 when deploying your containerized application to AWS. The ASG and ALB will distribute traffic across multiple EC2 instances running your Docker containers.
+This infrastructure includes:
+- **RDS MySQL Database**: Already configured and running - your backend will connect to this
+- **Auto Scaling Group + ALB**: You'll update the User Data to run your Docker container
+- **S3/CloudFront Frontend**: Already deployed - will communicate with your backend via the ALB
+
+You'll only need to update the User Data section of this stack to deploy your containerized backend.
 
 ---
 
@@ -91,34 +157,19 @@ This infrastructure will be used in Part 9 when deploying your containerized app
 
 Your application consists of three tiers:
 
-1. **Frontend**: React application (course-site)
-2. **Backend**: Node.js/Express API with Prisma ORM (server-nodejs)
-3. **Database**: MySQL database
+1. **Frontend**: React application (course-site) - **Already deployed via S3/CloudFront**
+2. **Backend**: Node.js/Express API with Prisma ORM (server-nodejs) - **You will containerize this**
+3. **Database**: MySQL database (RDS) - **Already configured in CloudFormation**
+
+**Important Note**: The frontend has already been deployed using the S3/CloudFront CloudFormation template from the previous task. In this Docker task, you will focus on containerizing the **backend API only** and deploying it to the ASG-ALB infrastructure.
 
 ---
 
 ## Task Requirements
 
-### Part 1: Create Dockerfile for Frontend (React App)
+### Part 1: Create Dockerfile for Backend (Node.js API)
 
-Navigate to `course-site-with-nodejs-backend-db/course-site/` and create a `Dockerfile`:
-
-**Requirements**:
-1. Use multi-stage build (build stage + nginx stage)
-2. Build the React app with production optimizations
-3. Serve with Nginx
-4. Configure Nginx to proxy API requests to backend
-5. Expose port 80
-
-**Nginx Configuration**:
-Create `nginx.conf` to handle React routing and API proxy:
-- Serve static files from `/usr/share/nginx/html`
-- Proxy `/api/*` requests to backend service
-- Handle React Router (fallback to index.html)
-
-### Part 2: Create Dockerfile for Backend (Node.js API)
-
-The backend already has a Dockerfile in `server-nodejs/`. Review and understand it:
+Navigate to `course-site-with-nodejs-backend-db/server-nodejs/` and review the existing Dockerfile:
 
 **Key Points**:
 - Uses Node.js 20 slim image
@@ -129,276 +180,301 @@ The backend already has a Dockerfile in `server-nodejs/`. Review and understand 
 
 **Your Tasks**:
 1. Review the existing Dockerfile
-2. Add `.dockerignore` file if missing
-3. Ensure it follows best practices
-4. Test building the image locally
+2. Add `.dockerignore` file if missing to exclude:
+   - `node_modules/`
+   - `.env`
+   - `.git/`
+   - `*.log`
+   - `dist/`
+3. Ensure it follows Docker best practices
+4. Test building the image locally:
+   ```bash
+   cd course-site-with-nodejs-backend-db/server-nodejs
+   docker build -t course-site-backend:latest .
+   ```
 
-### Part 3: Create Docker Compose Configuration
+### Part 2: Test Backend Locally (Optional)
 
-Create a comprehensive `docker-compose.yml` in the root of `course-site-with-nodejs-backend-db/`:
+You can optionally test the backend container locally before deploying to AWS:
 
-**Services to Define**:
+1. **Run the container locally**:
+   ```bash
+   docker run -d \
+     --name course-site-backend-test \
+     -p 5001:5001 \
+     -e DATABASE_URL="mysql://user:pass@host:3306/dbname" \
+     -e NODE_ENV=development \
+     -e PORT=5001 \
+     course-site-backend:latest
+   ```
 
-1. **MySQL Database Service**:
-   - Use official MySQL 8.0 image
-   - Set root password and create database
-   - Configure persistent volume for data
-   - Expose port 3306 (only to other containers)
-   - Add health check
+2. **Test the API**:
+   ```bash
+   curl http://localhost:5001/api/courses
+   ```
 
-2. **Backend API Service**:
-   - Build from `./server-nodejs`
-   - Depends on database service
-   - Set environment variables:
-     - `DATABASE_URL` (connection to MySQL container)
-     - `PORT=5001`
-     - `NODE_ENV=production`
-   - Expose port 5001
-   - Add health check endpoint
-   - Wait for database to be ready
+3. **View logs**:
+   ```bash
+   docker logs -f course-site-backend-test
+   ```
 
-3. **Frontend Service**:
-   - Build from `./course-site`
-   - Depends on backend service
-   - Expose port 80 (map to 8080 on host)
-   - Configure environment variable for API URL
+4. **Stop and remove**:
+   ```bash
+   docker stop course-site-backend-test
+   docker rm course-site-backend-test
+   ```
 
-4. **Networks**:
-   - Create custom bridge network for all services
-   - Ensure proper service discovery
+**Note**: You'll need a valid `DATABASE_URL` pointing to a MySQL database (you can use a local MySQL instance or a test RDS instance).
 
-5. **Volumes**:
-   - Named volume for MySQL data persistence
-   - Optional: volumes for logs
+### Part 3: Push Backend Image to Amazon ECR
 
-### Part 4: Environment Configuration
+1. **Create ECR repository**:
+   ```bash
+   aws ecr create-repository --repository-name course-site-backend --region eu-west-1
+   ```
 
-Create `.env` file for Docker Compose:
+2. **Authenticate Docker to ECR**:
+   ```bash
+   aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin YOUR_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com
+   ```
 
-```env
-# Database Configuration
-MYSQL_ROOT_PASSWORD=your_secure_root_password
-MYSQL_DATABASE=courses_db
-MYSQL_USER=courses_user
-MYSQL_PASSWORD=your_secure_password
+3. **Tag your backend image**:
+   ```bash
+   docker tag course-site-backend:latest YOUR_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/course-site-backend:latest
+   ```
 
-# Backend Configuration
-DATABASE_URL=mysql://courses_user:your_secure_password@db:3306/courses_db
-NODE_ENV=production
-PORT=5001
+4. **Push to ECR**:
+   ```bash
+   docker push YOUR_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/course-site-backend:latest
+   ```
 
-# Frontend Configuration
-REACT_APP_API_URL=http://localhost:5001
+5. **Verify the push**:
+   ```bash
+   aws ecr describe-images --repository-name course-site-backend --region eu-west-1
+   ```
+
+### Part 4: Update ASG-ALB CloudFormation User Data
+
+Now you'll update the CloudFormation template to deploy your Docker container instead of running Node.js directly.
+
+#### Step 4.1: Download and Locate the User Data Section
+
+1. **Download the CloudFormation template** (if you haven't already):
+   ```bash
+   wget https://raw.githubusercontent.com/ronhadad22/cloud-formation-course-site/main/asg-alb-scaling.yaml
+   ```
+
+2. **Open the template** and locate the `UserData` section in the `LaunchTemplate` resource.
+
+3. **Current User Data** (Node.js setup):
+   The current User Data installs Node.js and runs the application directly:
+   ```bash
+   set -euxo pipefail
+   dnf update -y
+   dnf install -y nodejs
+   node --version > /var/log/node-version.log 2>&1 || true
+
+   sudo yum install git -y
+   APP_DIR="/home/ec2-user/3tierapp-course-site/course-site-with-nodejs-backend-db/server-nodejs"
+   if [ ! -d "/home/ec2-user/3tierapp-course-site" ]; then
+     su - ec2-user -c "git clone https://github.com/ronhadad22/3tierapp-course-site.git /home/ec2-user/3tierapp-course-site"
+   fi
+   chown -R ec2-user:ec2-user /home/ec2-user/3tierapp-course-site
+
+   # Creates systemd service for Node.js app...
+   ```
+
+#### Step 4.2: Replace with Docker-Based User Data
+
+Replace the entire User Data section with the following Docker-based deployment:
+
+```yaml
+UserData:
+  Fn::Base64: !Sub |
+    #!/bin/bash
+    set -euxo pipefail
+    
+    # Update system
+    dnf update -y
+    
+    # Install Docker
+    dnf install -y docker
+    systemctl enable docker
+    systemctl start docker
+    usermod -aG docker ec2-user || true
+    
+    # Install jq for JSON parsing
+    dnf install -y jq
+    
+    # Authenticate Docker to ECR
+    aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+    
+    # Pull the backend image from ECR
+    docker pull ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/course-site-backend:latest
+    
+    # Get DB credentials from Secrets Manager
+    DB_SECRET=$(aws secretsmanager get-secret-value --secret-id ${DBSecretArn} --region ${AWS::Region} --query SecretString --output text)
+    DB_USERNAME=$(echo $DB_SECRET | jq -r .username)
+    DB_PASSWORD=$(echo $DB_SECRET | jq -r .password)
+    DB_HOST=${MyRDSInstance.Endpoint.Address}
+    DB_NAME=coursedb
+    
+    # Remove old container if exists
+    docker rm -f course-site-backend || true
+    
+    # Run the backend container
+    docker run -d \
+      --name course-site-backend \
+      --restart unless-stopped \
+      -p 5001:5001 \
+      -e DATABASE_URL="mysql://${!DB_USERNAME}:${!DB_PASSWORD}@${!DB_HOST}:3306/${!DB_NAME}" \
+      -e NODE_ENV=production \
+      -e PORT=5001 \
+      -e AWS_REGION=${AWS::Region} \
+      ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/course-site-backend:latest
+    
+    # Wait for container to start
+    sleep 10
+    
+    # Run Prisma migrations
+    docker exec course-site-backend npx prisma migrate deploy || true
+    docker exec course-site-backend npx prisma generate || true
 ```
 
-**Security Note**: Never commit `.env` file to Git. Add it to `.gitignore`.
+#### Step 4.3: Update IAM Role Permissions
 
-### Part 5: Database Initialization
+The `InstanceRole` in the CloudFormation template needs ECR permissions. Locate the `InstanceRole` resource and add the ECR policy:
 
-Create a database initialization script:
-
-1. **Create `init-scripts/` directory** in `course-site-with-nodejs-backend-db/`
-2. **Add `init.sql`** with:
-   - Database creation
-   - User permissions
-   - Initial schema (if not using Prisma migrations)
-
-3. **Update docker-compose.yml** to mount init scripts:
-   ```yaml
-   volumes:
-     - ./init-scripts:/docker-entrypoint-initdb.d
-   ```
-
-### Part 6: Build and Test Locally
-
-1. **Build all services**:
-   ```bash
-   docker-compose build
-   ```
-
-2. **Start all services**:
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Run Prisma migrations** (first time only):
-   ```bash
-   docker-compose exec backend npx prisma migrate deploy
-   ```
-
-4. **View logs**:
-   ```bash
-   # All services
-   docker-compose logs -f
-   
-   # Specific service
-   docker-compose logs -f backend
-   ```
-
-5. **Test the application**:
-   - Frontend: `http://localhost:8080`
-   - Backend API: `http://localhost:5001/api/courses`
-   - Verify database connectivity
-
-6. **Check service health**:
-   ```bash
-   docker-compose ps
-   ```
-
-### Part 7: Advanced Docker Compose Features
-
-Enhance your `docker-compose.yml` with:
-
-1. **Health Checks** for all services:
-   ```yaml
-   healthcheck:
-     test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-     interval: 30s
-     timeout: 10s
-     retries: 3
-     start_period: 40s
-   ```
-
-2. **Resource Limits**:
-   ```yaml
-   deploy:
-     resources:
-       limits:
-         cpus: '0.5'
-         memory: 512M
-   ```
-
-3. **Restart Policies**:
-   ```yaml
-   restart: unless-stopped
-   ```
-
-4. **Logging Configuration**:
-   ```yaml
-   logging:
-     driver: "json-file"
-     options:
-       max-size: "10m"
-       max-file: "3"
-   ```
-
-### Part 8: Create Helper Scripts
-
-Create the following scripts in the project root:
-
-1. **`start.sh`** - Start all services
-2. **`stop.sh`** - Stop all services
-3. **`rebuild.sh`** - Rebuild and restart services
-4. **`logs.sh`** - View logs
-5. **`clean.sh`** - Remove all containers, volumes, and images
-
-Example `start.sh`:
-```bash
-#!/bin/bash
-echo "Starting all services..."
-docker-compose up -d
-echo "Waiting for services to be healthy..."
-sleep 10
-docker-compose ps
-echo "Application is running at http://localhost:8080"
+```yaml
+- PolicyName: ECRAccess
+  PolicyDocument:
+    Version: '2012-10-17'
+    Statement:
+      - Effect: Allow
+        Action:
+          - ecr:GetAuthorizationToken
+          - ecr:BatchCheckLayerAvailability
+          - ecr:GetDownloadUrlForLayer
+          - ecr:BatchGetImage
+        Resource: '*'
 ```
 
-Make scripts executable:
-```bash
-chmod +x *.sh
+**Note**: The template should already have Secrets Manager permissions for accessing `DBSecretArn`. If not, add:
+
+```yaml
+- Effect: Allow
+  Action:
+    - secretsmanager:GetSecretValue
+  Resource: !Ref DBSecretArn
 ```
 
-### Part 9: Deploy to AWS
+#### Step 4.4: Update the CloudFormation Stack
 
-Choose one of the following deployment options:
-
-#### Option A: Deploy to EC2 with Docker Compose
-
-1. **Launch EC2 instance** (t2.medium or larger recommended)
-2. **Install Docker and Docker Compose**:
+1. **Update the stack** with the modified template:
    ```bash
-   sudo yum update -y
-   sudo yum install docker -y
-   sudo systemctl start docker
-   sudo systemctl enable docker
-   
-   # Install Docker Compose
-   sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-   sudo chmod +x /usr/local/bin/docker-compose
+   aws cloudformation update-stack \
+     --stack-name ASG-ALB-Docker-Stack \
+     --template-body file://asg-alb-scaling.yaml \
+     --capabilities CAPABILITY_NAMED_IAM
    ```
 
-3. **Clone your repository** or copy files to EC2
-4. **Configure environment variables**
-5. **Run Docker Compose**:
+2. **Wait for the update to complete**:
    ```bash
-   docker-compose up -d
+   aws cloudformation wait stack-update-complete --stack-name ASG-ALB-Docker-Stack
    ```
 
-6. **Configure security groups**:
-   - Port 80 (HTTP) - Frontend
-   - Port 5001 (API) - Backend (optional, if accessing directly)
-   - Port 22 (SSH) - For management
+3. **Verify the deployment**:
+   - Check that new instances are launched with Docker
+   - SSH into an instance and verify the container is running:
+     ```bash
+     docker ps
+     docker logs course-site-backend
+     ```
+   - Test the backend API through the ALB endpoint
+   - Verify the frontend (S3/CloudFront) can communicate with the backend
 
-#### Option B: Deploy to Amazon ECS (Elastic Container Service)
+### Part 5: Configure CORS and Frontend Integration
 
-1. **Push images to ECR**:
+#### Step 5.1: Configure CORS for Backend
+
+Ensure your backend allows requests from the CloudFront domain. Update your backend CORS configuration:
+
+```javascript
+// In your Express app
+const cors = require('cors');
+
+app.use(cors({
+  origin: [
+    'https://your-cloudfront-domain.cloudfront.net',
+    'http://localhost:3000' // for local development
+  ],
+  credentials: true
+}));
+```
+
+#### Step 5.2: Update Frontend Environment Variables
+
+The frontend (deployed on S3/CloudFront) needs to know the backend API URL. Update the frontend build with the ALB endpoint:
+
+1. **Get the ALB DNS name** from CloudFormation outputs:
    ```bash
-   # Create repositories
-   aws ecr create-repository --repository-name course-site-frontend
-   aws ecr create-repository --repository-name course-site-backend
-   
-   # Build and push
-   docker-compose build
-   docker tag course-site-frontend:latest YOUR_ACCOUNT.dkr.ecr.REGION.amazonaws.com/course-site-frontend:latest
-   docker tag course-site-backend:latest YOUR_ACCOUNT.dkr.ecr.REGION.amazonaws.com/course-site-backend:latest
-   docker push YOUR_ACCOUNT.dkr.ecr.REGION.amazonaws.com/course-site-frontend:latest
-   docker push YOUR_ACCOUNT.dkr.ecr.REGION.amazonaws.com/course-site-backend:latest
+   aws cloudformation describe-stacks --stack-name ASG-ALB-Docker-Stack --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' --output text
    ```
 
-2. **Create RDS MySQL instance** for production database
+2. **Update frontend environment** and rebuild:
+   ```bash
+   cd course-site-with-nodejs-backend-db/course-site
+   echo "REACT_APP_API_URL=http://YOUR-ALB-DNS-NAME" > .env.production
+   npm run build
+   ```
 
-3. **Create ECS Task Definitions** for frontend and backend
+3. **Upload to S3**:
+   ```bash
+   aws s3 sync build/ s3://your-frontend-bucket/ --delete
+   aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
+   ```
 
-4. **Create ECS Service** with:
-   - Application Load Balancer
-   - Auto Scaling
-   - CloudWatch logging
+### Part 6: Production Considerations
 
-5. **Configure environment variables** using ECS task definition or AWS Secrets Manager
+The ASG-ALB CloudFormation template already includes many production-ready features. Ensure you've configured:
 
-#### Option C: Use AWS App Runner (Simplified)
+1. **RDS Database** (Already in CloudFormation):
+   - The template creates an RDS MySQL instance
+   - Automated backups are configured
+   - Multi-AZ deployment for high availability (optional)
+   - Database credentials stored in Secrets Manager
 
-1. **Push images to ECR** (as in Option B)
-2. **Create App Runner services** for frontend and backend
-3. **Use RDS for database**
-4. **Configure service connections**
+2. **SSL/TLS**:
+   - Add HTTPS listener to ALB using AWS Certificate Manager
+   - Update the `SSLCertificateArns` parameter in the CloudFormation template
+   - Redirect HTTP to HTTPS
 
-### Part 10: Production Considerations
+3. **Monitoring and Logging**:
+   - Enable CloudWatch Container Insights
+   - Configure CloudWatch Logs for Docker containers
+   - Set up CloudWatch Alarms for:
+     - High CPU/Memory usage
+     - ALB target health
+     - RDS connections
+   - Use AWS X-Ray for distributed tracing (optional)
 
-Implement the following for production readiness:
+4. **Auto Scaling**:
+   - The ASG is already configured with target tracking
+   - Adjust `MinSize`, `MaxSize`, and `DesiredCapacity` parameters
+   - Monitor scaling activities in CloudWatch
 
-1. **Use AWS RDS** instead of containerized MySQL:
-   - Better reliability and backups
-   - Managed updates and maintenance
-   - Update `DATABASE_URL` to point to RDS endpoint
+5. **Security Best Practices**:
+   - Never commit secrets to Git
+   - Use Secrets Manager for all credentials
+   - Configure security groups to allow only necessary traffic
+   - Enable VPC Flow Logs
+   - Regular security updates via User Data script
 
-2. **Secrets Management**:
-   - Use AWS Secrets Manager or Parameter Store
-   - Never hardcode credentials
-   - Update backend to fetch secrets from AWS
-
-3. **SSL/TLS**:
-   - Configure HTTPS using AWS Certificate Manager
-   - Update ALB to handle SSL termination
-
-4. **Monitoring and Logging**:
-   - Configure CloudWatch Logs
-   - Set up CloudWatch Alarms
-   - Use AWS X-Ray for tracing
-
-5. **Backup Strategy**:
-   - Automated RDS snapshots
-   - Backup strategy for uploaded files (if any)
+6. **CI/CD Pipeline** (Bonus):
+   - Automate Docker image builds on code push
+   - Push to ECR automatically
+   - Trigger ASG instance refresh on new image
+   - Use CodePipeline + CodeBuild
 
 ---
 
@@ -406,118 +482,171 @@ Implement the following for production readiness:
 
 Submit the following:
 
-1. **Dockerfiles**:
-   - Frontend Dockerfile with nginx.conf
-   - Backend Dockerfile (reviewed/updated)
-   - Both with `.dockerignore` files
+1. **Backend Dockerfile**:
+   - Reviewed/updated Dockerfile in `server-nodejs/`
+   - `.dockerignore` file
+   - Documentation of any changes made
 
-2. **Docker Compose Configuration**:
-   - `docker-compose.yml` (production-ready)
-   - `.env.example` (template without secrets)
-   - `init-scripts/` directory with database initialization
+2. **Updated CloudFormation Template**:
+   - Modified `asg-alb-scaling.yaml` with:
+     - Updated User Data for Docker deployment
+     - ECR permissions in IAM role
+     - Any other necessary changes
 
-3. **Helper Scripts**:
-   - start.sh, stop.sh, rebuild.sh, logs.sh, clean.sh
-
-4. **Documentation**:
+3. **Documentation**:
    - `DEPLOYMENT.md` with:
-     - Architecture diagram
-     - Setup instructions
+     - Architecture diagram showing S3/CloudFront frontend + ASG/ALB backend + RDS
+     - Docker build instructions
+     - ECR push instructions
+     - CloudFormation update steps
      - Environment variables documentation
-     - Deployment steps
      - Troubleshooting guide
 
-5. **Screenshots**:
-   - `docker-compose ps` output showing all services running
-   - Application running locally
-   - Application running on AWS
-   - CloudWatch logs (if using ECS)
+4. **Screenshots**:
+   - Docker build successful
+   - ECR repository with pushed image
+   - CloudFormation stack update successful
+   - EC2 instance with `docker ps` showing running container
+   - `docker logs` output from backend container
+   - ALB health checks passing
+   - Backend API responding through ALB (curl/Postman)
+   - Full application working (frontend on CloudFront + backend on ALB)
 
-6. **AWS Resources**:
-   - ECR repository URLs
-   - EC2/ECS public endpoint
-   - RDS endpoint (if used)
+5. **AWS Resources Documentation**:
+   - ECR repository URL
+   - ALB DNS name
+   - CloudFront distribution URL
+   - RDS endpoint
+   - CloudFormation stack name
 
 ---
 
 ## Evaluation Criteria
 
-- **Dockerfiles Quality** (20%): Best practices, optimization, security
-- **Docker Compose Configuration** (25%): Proper networking, volumes, health checks
-- **Local Testing** (15%): All services work together locally
-- **AWS Deployment** (25%): Successfully deployed and accessible
-- **Production Readiness** (10%): Secrets management, monitoring, backups
-- **Documentation** (5%): Clear, comprehensive documentation
+- **Backend Dockerfile Quality** (20%): Best practices, optimization, security
+- **ECR Image Push** (15%): Successfully built and pushed to ECR
+- **CloudFormation Update** (30%): Correctly updated User Data and IAM permissions
+- **AWS Deployment** (25%): Backend successfully deployed on ASG instances, accessible via ALB
+- **Full Stack Integration** (15%): Frontend (CloudFront) successfully communicates with backend (ALB)
+- **Production Readiness** (10%): Secrets management, monitoring, security
+- **Documentation** (10%): Clear, comprehensive documentation
 
 ---
 
 ## Helpful Commands
 
 ```bash
-# Docker Compose Commands
-docker-compose up -d                    # Start all services in background
-docker-compose down                     # Stop and remove all containers
-docker-compose down -v                  # Stop and remove containers + volumes
-docker-compose ps                       # List running services
-docker-compose logs -f [service]        # Follow logs
-docker-compose exec [service] sh        # Execute command in service
-docker-compose build --no-cache         # Rebuild without cache
-docker-compose restart [service]        # Restart specific service
+# Docker Commands
+docker build -t course-site-backend:latest .    # Build image
+docker images                                    # List images
+docker ps                                        # List running containers
+docker ps -a                                     # List all containers
+docker logs -f course-site-backend              # Follow container logs
+docker exec -it course-site-backend sh          # Access container shell
+docker stop course-site-backend                 # Stop container
+docker rm course-site-backend                   # Remove container
+docker rmi course-site-backend:latest           # Remove image
 
-# Debugging
-docker-compose config                   # Validate and view compose file
-docker network ls                       # List networks
-docker network inspect [network]        # Inspect network
-docker volume ls                        # List volumes
-docker volume inspect [volume]          # Inspect volume
+# ECR Commands
+aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com
+aws ecr describe-repositories                   # List ECR repositories
+aws ecr describe-images --repository-name course-site-backend  # List images in repo
+docker push ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/course-site-backend:latest
 
-# Database Access
-docker-compose exec db mysql -u root -p # Access MySQL CLI
+# CloudFormation Commands
+aws cloudformation update-stack --stack-name ASG-ALB-Docker-Stack --template-body file://asg-alb-scaling.yaml --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation describe-stacks --stack-name ASG-ALB-Docker-Stack
+aws cloudformation wait stack-update-complete --stack-name ASG-ALB-Docker-Stack
 
-# Backend Shell
-docker-compose exec backend sh          # Access backend container
+# EC2 Debugging (SSH into instance)
+docker ps                                        # Check running containers
+docker logs course-site-backend                 # View container logs
+docker exec course-site-backend env             # Check environment variables
+curl http://localhost:5001/api/courses          # Test API locally
 ```
 
 ---
 
 ## Common Issues and Solutions
 
-### Issue 1: Database Connection Refused
-**Solution**: Ensure database service is healthy before backend starts. Use `depends_on` with health checks.
+### Issue 1: ECR Authentication Failed
+**Solution**: Ensure you're authenticated to ECR and using the correct region:
+```bash
+aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com
+```
 
-### Issue 2: Prisma Client Not Generated
-**Solution**: Run `npx prisma generate` in Dockerfile or as part of startup script.
+### Issue 2: Container Not Starting on EC2
+**Solution**: 
+- SSH into the instance and check Docker logs: `docker logs course-site-backend`
+- Verify environment variables are set correctly
+- Check that RDS endpoint is accessible from the EC2 instance
 
-### Issue 3: Frontend Can't Reach Backend
-**Solution**: Check CORS configuration in backend and API URL in frontend environment variables.
+### Issue 3: Database Connection Refused
+**Solution**: 
+- Verify RDS security group allows inbound traffic from EC2 instances
+- Check that DATABASE_URL is correctly formatted
+- Ensure Secrets Manager credentials are correct
 
-### Issue 4: Port Already in Use
-**Solution**: Change host port mapping in docker-compose.yml or stop conflicting service.
+### Issue 4: Prisma Migrations Fail
+**Solution**: 
+- Ensure the database exists and is accessible
+- Run migrations manually: `docker exec course-site-backend npx prisma migrate deploy`
+- Check Prisma schema matches database structure
 
-### Issue 5: Volume Permission Issues
-**Solution**: Check file ownership and permissions. May need to adjust user in Dockerfile.
+### Issue 5: Frontend Can't Reach Backend
+**Solution**: 
+- Verify CORS is configured to allow CloudFront origin
+- Check ALB security group allows inbound traffic on port 5001
+- Ensure frontend is using correct ALB DNS name
+- Verify ALB target health checks are passing
+
+### Issue 6: CloudFormation Stack Update Fails
+**Solution**: 
+- Check IAM permissions include ECR access
+- Verify template syntax is correct
+- Review CloudFormation events for specific error messages
+- Ensure all referenced resources (DBSecretArn, RDS instance) exist
 
 ---
 
 ## Additional Resources
 
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Docker Networking](https://docs.docker.com/network/)
-- [Prisma with Docker](https://www.prisma.io/docs/guides/deployment/deployment-guides/deploying-to-aws-lambda)
-- [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/)
+- [Docker Documentation](https://docs.docker.com/)
+- [Amazon ECR Documentation](https://docs.aws.amazon.com/ecr/)
+- [AWS CloudFormation User Data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html)
+- [Prisma with Docker](https://www.prisma.io/docs/guides/deployment/deployment)
 - [AWS RDS Documentation](https://docs.aws.amazon.com/rds/)
-- [Nginx Docker Configuration](https://hub.docker.com/_/nginx)
+- [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/)
+- [Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/)
 
 ---
 
 ## Bonus Challenges
 
-1. **CI/CD Pipeline**: Create GitHub Actions workflow to build and push images automatically
-2. **Blue-Green Deployment**: Implement zero-downtime deployments
-3. **Database Migrations**: Automate Prisma migrations in container startup
-4. **Monitoring Dashboard**: Set up Grafana + Prometheus for container monitoring
-5. **Load Testing**: Use Apache Bench or k6 to test application under load
+1. **CI/CD Pipeline**: Create GitHub Actions workflow to build and push images to ECR automatically
+2. **Blue-Green Deployment**: Implement zero-downtime deployments using ASG instance refresh
+3. **Database Migrations**: Automate Prisma migrations in container startup script
+4. **Monitoring Dashboard**: Set up CloudWatch Dashboard for container metrics
+5. **Load Testing**: Use Apache Bench or k6 to test backend API under load
+6. **Multi-Region Deployment**: Deploy the backend to multiple AWS regions
 
 ---
 
-Good luck with your full-stack containerization! 🐳🚀
+## Summary
+
+In this task, you've learned to:
+- ✅ Create a production-ready Dockerfile for a Node.js backend API
+- ✅ Build and test Docker images locally
+- ✅ Push Docker images to Amazon ECR
+- ✅ Update CloudFormation User Data to deploy containers on EC2
+- ✅ Integrate containerized backend with existing AWS infrastructure (RDS, ALB, S3/CloudFront)
+- ✅ Manage secrets and environment variables in production
+
+**Key Takeaway**: The frontend (S3/CloudFront) and database (RDS) were already deployed via CloudFormation. You only needed to:
+1. Containerize the backend API
+2. Push the image to ECR
+3. Update the User Data in the CloudFormation template to run the Docker container
+
+This demonstrates how Docker simplifies deployment by packaging the application and its dependencies into a single, portable container!
+
+Good luck with your backend containerization! 🐳🚀
