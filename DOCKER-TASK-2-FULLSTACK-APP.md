@@ -312,25 +312,23 @@ UserData:
     # Pull the backend image from ECR
     docker pull ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/course-site-backend:latest
     
-    # Get DB credentials from Secrets Manager
-    DB_SECRET=$(aws secretsmanager get-secret-value --secret-id ${DBSecretArn} --region ${AWS::Region} --query SecretString --output text)
-    DB_USERNAME=$(echo $DB_SECRET | jq -r .username)
-    DB_PASSWORD=$(echo $DB_SECRET | jq -r .password)
-    DB_HOST=${MyRDSInstance.Endpoint.Address}
-    DB_NAME=coursedb
-    
     # Remove old container if exists
     docker rm -f course-site-backend || true
     
-    # Run the backend container
+    # Run the backend container with environment variables
+    # The application will automatically construct DATABASE_URL from these env vars
     docker run -d \
       --name course-site-backend \
       --restart unless-stopped \
       -p 5001:5001 \
-      -e DATABASE_URL="mysql://${!DB_USERNAME}:${!DB_PASSWORD}@${!DB_HOST}:3306/${!DB_NAME}" \
+      -e AWS_REGION=${AWS::Region} \
+      -e DB_USERPASS_SECRET_ARN=${DBSecretArn} \
+      -e DB_HOST=${MyRDSInstance.Endpoint.Address} \
+      -e DB_NAME=coursedb \
+      -e DB_PORT=3306 \
+      -e DB_PARAMS=sslmode=REQUIRED \
       -e NODE_ENV=production \
       -e PORT=5001 \
-      -e AWS_REGION=${AWS::Region} \
       ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/course-site-backend:latest
     
     # Wait for container to start
