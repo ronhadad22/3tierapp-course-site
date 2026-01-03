@@ -38,17 +38,17 @@ When you push to `main`:
 3. Creates GitHub release with changelog
 4. **Docker Build** triggered automatically
 5. Image tagged with multiple versions
-6. Pushed to Amazon ECR
+6. Pushed to GitHub Container Registry (ghcr.io)
 
 ### 3. Docker Image Tags
 
 Each release creates multiple tags:
 
 ```
-950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1.2.3  # Full version
-950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1.2    # Major.Minor
-950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1      # Major
-950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:latest # Latest
+ghcr.io/ronhadad22/3tierapp-course-site:1.2.3  # Full version
+ghcr.io/ronhadad22/3tierapp-course-site:1.2    # Major.Minor
+ghcr.io/ronhadad22/3tierapp-course-site:1      # Major
+ghcr.io/ronhadad22/3tierapp-course-site:latest # Latest
 ```
 
 ## Conventional Commit Format
@@ -163,23 +163,23 @@ Semantic-release configuration:
 
 ```bash
 # Pull exact version
-docker pull 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1.2.3
+docker pull ghcr.io/ronhadad22/3tierapp-course-site:1.2.3
 
 # Pull minor version (gets latest patch)
-docker pull 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1.2
+docker pull ghcr.io/ronhadad22/3tierapp-course-site:1.2
 
 # Pull major version (gets latest minor)
-docker pull 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1
+docker pull ghcr.io/ronhadad22/3tierapp-course-site:1
 
 # Pull latest
-docker pull 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:latest
+docker pull ghcr.io/ronhadad22/3tierapp-course-site:latest
 ```
 
 ### Run Container
 
 ```bash
 docker run -p 3000:3000 \
-  950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1.2.3
+  ghcr.io/ronhadad22/3tierapp-course-site:1.2.3
 ```
 
 ## Best Practices
@@ -210,10 +210,10 @@ git commit -m "docs(readme): update installation steps"
 
 ```bash
 # Production - use specific version
-image: 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:1.2.3
+image: ghcr.io/ronhadad22/3tierapp-course-site:1.2.3
 
 # Development - use latest
-image: 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:latest
+image: ghcr.io/ronhadad22/3tierapp-course-site:latest
 ```
 
 ### 5. Review Changelog
@@ -266,12 +266,13 @@ GitHub Releases: https://github.com/ronhadad22/3tierapp-course-site/releases
 
 ### Check Docker Images
 
+View your packages at:
+https://github.com/ronhadad22/3tierapp-course-site/pkgs/container/3tierapp-course-site
+
+Or list images using Docker:
 ```bash
-# List images in ECR
-aws ecr describe-images \
-  --repository-name 3tierapp-course-site \
-  --region us-east-2 \
-  --profile int-profile
+# List available tags (requires authentication)
+docker pull ghcr.io/ronhadad22/3tierapp-course-site --all-tags
 ```
 
 ### Check Workflow Runs

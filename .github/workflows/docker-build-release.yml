@@ -14,8 +14,8 @@ permissions:
   pull-requests: write
 
 env:
-  AWS_REGION: us-east-2
-  ECR_REPOSITORY: 3tierapp-course-site
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   semantic-release:
@@ -47,67 +47,69 @@ jobs:
     needs: semantic-release
     if: needs.semantic-release.outputs.new_release_published == 'true'
     runs-on: codebuild-test-github-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: read
+      packages: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          role-to-assume: arn:aws:iam::950555670656:role/GitHubCodeBuildStack-GitHubActionsRole4F1BBA26-Vi0SJTAocFZk
-          aws-region: ${{ env.AWS_REGION }}
-      
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: Extract version
-        id: version
+      - name: Extract version and metadata
+        id: meta
         run: |
           VERSION=${{ needs.semantic-release.outputs.new_release_version }}
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "major=$(echo ${VERSION} | cut -d. -f1)" >> $GITHUB_OUTPUT
           echo "minor=$(echo ${VERSION} | cut -d. -f1-2)" >> $GITHUB_OUTPUT
+          
+          # Convert repository name to lowercase for ghcr.io
+          IMAGE_NAME_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_name=${IMAGE_NAME_LOWER}" >> $GITHUB_OUTPUT
       
       - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          VERSION: ${{ steps.version.outputs.version }}
-          MAJOR: ${{ steps.version.outputs.major }}
-          MINOR: ${{ steps.version.outputs.minor }}
-        run: |
-          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}"
-          
-          echo "Building Docker image with tags:"
-          echo "  - ${IMAGE_URI}:${VERSION}"
-          echo "  - ${IMAGE_URI}:${MINOR}"
-          echo "  - ${IMAGE_URI}:${MAJOR}"
-          echo "  - ${IMAGE_URI}:latest"
-          
-          docker buildx build \
-            --platform linux/amd64 \
-            --tag ${IMAGE_URI}:${VERSION} \
-            --tag ${IMAGE_URI}:${MINOR} \
-            --tag ${IMAGE_URI}:${MAJOR} \
-            --tag ${IMAGE_URI}:latest \
-            --push \
-            .
-          
-          echo "✅ Docker image pushed successfully!"
-          echo "Image URI: ${IMAGE_URI}:${VERSION}"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.minor }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.major }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:latest
+          labels: |
+            org.opencontainers.image.title=${{ github.repository }}
+            org.opencontainers.image.description=3-tier app course site
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
       
-      - name: Image digest
+      - name: Image summary
         run: |
-          echo "Image pushed with semantic version: ${{ steps.version.outputs.version }}"
+          IMAGE_NAME_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "✅ Docker image pushed successfully to GitHub Container Registry!"
+          echo ""
+          echo "Image: ${{ env.REGISTRY }}/${IMAGE_NAME_LOWER}:${{ steps.meta.outputs.version }}"
+          echo ""
           echo "Available tags:"
-          echo "  - ${{ steps.version.outputs.version }} (full version)"
-          echo "  - ${{ steps.version.outputs.minor }} (major.minor)"
-          echo "  - ${{ steps.version.outputs.major }} (major)"
+          echo "  - ${{ steps.meta.outputs.version }} (full version)"
+          echo "  - ${{ steps.meta.outputs.minor }} (major.minor)"
+          echo "  - ${{ steps.meta.outputs.major }} (major)"
           echo "  - latest"
+          echo ""
+          echo "Pull command:"
+          echo "  docker pull ${{ env.REGISTRY }}/${IMAGE_NAME_LOWER}:${{ steps.meta.outputs.version }}"
 
   summary:
     name: Deployment Summary
@@ -121,10 +123,16 @@ jobs:
           echo "=== Deployment Summary ==="
           echo ""
           if [ "${{ needs.semantic-release.outputs.new_release_published }}" == "true" ]; then
+            IMAGE_NAME_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             echo "✅ New release published: v${{ needs.semantic-release.outputs.new_release_version }}"
-            echo "✅ Docker image built and pushed to ECR"
+            echo "✅ Docker image built and pushed to GitHub Container Registry"
             echo ""
-            echo "Image: 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:${{ needs.semantic-release.outputs.new_release_version }}"
+            echo "Image: ghcr.io/${IMAGE_NAME_LOWER}:${{ needs.semantic-release.outputs.new_release_version }}"
+            echo ""
+            echo "Pull command:"
+            echo "  docker pull ghcr.io/${IMAGE_NAME_LOWER}:${{ needs.semantic-release.outputs.new_release_version }}"
+            echo ""
+            echo "View package: https://github.com/${{ github.repository }}/pkgs/container/$(basename ${{ github.repository }})"
           else
             echo "ℹ️  No new release - no version bump needed"
             echo "ℹ️  Commit message didn't trigger a release"
