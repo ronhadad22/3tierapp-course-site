@@ -1,0 +1,52 @@
+name: Test Native CodeBuild Runner
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test-native-runner:
+    # Native CodeBuild runner syntax - uses your project name "test-github"
+    runs-on: codebuild-test-github-${{ github.run_id }}-${{ github.run_attempt }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Print environment info
+        run: |
+          echo "=== Native CodeBuild Runner Test ==="
+          echo "Project: test-github"
+          echo "Runner: $(hostname)"
+          echo "User: $(whoami)"
+          echo "Date: $(date)"
+          echo "Working Directory: $(pwd)"
+          echo ""
+          echo "=== System Information ==="
+          uname -a
+          echo ""
+          echo "=== Available Tools ==="
+          node --version || echo "Node.js not available"
+          npm --version || echo "npm not available"
+          python3 --version || echo "Python not available"
+          docker --version || echo "Docker not available"
+          git --version
+          echo ""
+          echo "=== AWS CLI ==="
+          aws --version
+      
+      - name: List files
+        run: |
+          echo "=== Repository Files ==="
+          ls -la
+      
+      - name: Test completion
+        run: |
+          echo "✅ Native CodeBuild runner is working!"
+          echo "✅ No Lambda or API Gateway required!"
+          echo "✅ Simpler architecture than webhook approach!"
