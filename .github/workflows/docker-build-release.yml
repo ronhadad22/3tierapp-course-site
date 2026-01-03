@@ -32,35 +32,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      
-      - name: Install semantic-release
-        run: |
-          npm install -g \
-            semantic-release@^22 \
-            @semantic-release/changelog@^6 \
-            @semantic-release/git@^10 \
-            @semantic-release/github@^9 \
-            @semantic-release/commit-analyzer@^11 \
-            @semantic-release/release-notes-generator@^12
-      
       - name: Run semantic-release
         id: semantic
+        uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          npx semantic-release
-          
-          # Export outputs for next job
-          if [ -f .VERSION ]; then
-            echo "new_release_published=true" >> $GITHUB_OUTPUT
-            echo "new_release_version=$(cat .VERSION)" >> $GITHUB_OUTPUT
-          else
-            echo "new_release_published=false" >> $GITHUB_OUTPUT
-          fi
+        with:
+          extra_plugins: |
+            @semantic-release/changelog@6
+            @semantic-release/git@10
 
   docker-build:
     name: Build and Push Docker Image
