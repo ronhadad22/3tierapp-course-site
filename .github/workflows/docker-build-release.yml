@@ -1,0 +1,156 @@
+name: Docker Build and Release with Semantic Versioning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REPOSITORY: 3tierapp-course-site
+
+jobs:
+  semantic-release:
+    name: Semantic Release
+    runs-on: codebuild-test-github-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install semantic-release
+        run: |
+          npm install -g \
+            semantic-release@^22 \
+            @semantic-release/changelog@^6 \
+            @semantic-release/git@^10 \
+            @semantic-release/github@^9 \
+            @semantic-release/commit-analyzer@^11 \
+            @semantic-release/release-notes-generator@^12
+      
+      - name: Run semantic-release
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release
+          
+          # Export outputs for next job
+          if [ -f .VERSION ]; then
+            echo "new_release_published=true" >> $GITHUB_OUTPUT
+            echo "new_release_version=$(cat .VERSION)" >> $GITHUB_OUTPUT
+          else
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+          fi
+
+  docker-build:
+    name: Build and Push Docker Image
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    runs-on: codebuild-test-github-${{ github.run_id }}-${{ github.run_attempt }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::950555670656:role/GitHubCodeBuildStack-GitHubActionsRole4F1BBA26-Vi0SJTAocFZk
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${{ needs.semantic-release.outputs.new_release_version }}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "major=$(echo ${VERSION} | cut -d. -f1)" >> $GITHUB_OUTPUT
+          echo "minor=$(echo ${VERSION} | cut -d. -f1-2)" >> $GITHUB_OUTPUT
+      
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          VERSION: ${{ steps.version.outputs.version }}
+          MAJOR: ${{ steps.version.outputs.major }}
+          MINOR: ${{ steps.version.outputs.minor }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+          
+          echo "Building Docker image with tags:"
+          echo "  - ${IMAGE_URI}:${VERSION}"
+          echo "  - ${IMAGE_URI}:${MINOR}"
+          echo "  - ${IMAGE_URI}:${MAJOR}"
+          echo "  - ${IMAGE_URI}:latest"
+          
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag ${IMAGE_URI}:${VERSION} \
+            --tag ${IMAGE_URI}:${MINOR} \
+            --tag ${IMAGE_URI}:${MAJOR} \
+            --tag ${IMAGE_URI}:latest \
+            --push \
+            .
+          
+          echo "✅ Docker image pushed successfully!"
+          echo "Image URI: ${IMAGE_URI}:${VERSION}"
+      
+      - name: Image digest
+        run: |
+          echo "Image pushed with semantic version: ${{ steps.version.outputs.version }}"
+          echo "Available tags:"
+          echo "  - ${{ steps.version.outputs.version }} (full version)"
+          echo "  - ${{ steps.version.outputs.minor }} (major.minor)"
+          echo "  - ${{ steps.version.outputs.major }} (major)"
+          echo "  - latest"
+
+  summary:
+    name: Deployment Summary
+    needs: [semantic-release, docker-build]
+    if: always()
+    runs-on: codebuild-test-github-${{ github.run_id }}-${{ github.run_attempt }}
+    
+    steps:
+      - name: Print summary
+        run: |
+          echo "=== Deployment Summary ==="
+          echo ""
+          if [ "${{ needs.semantic-release.outputs.new_release_published }}" == "true" ]; then
+            echo "✅ New release published: v${{ needs.semantic-release.outputs.new_release_version }}"
+            echo "✅ Docker image built and pushed to ECR"
+            echo ""
+            echo "Image: 950555670656.dkr.ecr.us-east-2.amazonaws.com/3tierapp-course-site:${{ needs.semantic-release.outputs.new_release_version }}"
+          else
+            echo "ℹ️  No new release - no version bump needed"
+            echo "ℹ️  Commit message didn't trigger a release"
+            echo ""
+            echo "To trigger a release, use conventional commits:"
+            echo "  - feat: new feature (minor version bump)"
+            echo "  - fix: bug fix (patch version bump)"
+            echo "  - BREAKING CHANGE: breaking change (major version bump)"
+          fi

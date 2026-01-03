@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.github
+.gitignore
+README.md
+DOCKER-SEMVER-GUIDE.md
+CHANGELOG.md
+.releaserc.json
+*.md
+.env
+.DS_Store
